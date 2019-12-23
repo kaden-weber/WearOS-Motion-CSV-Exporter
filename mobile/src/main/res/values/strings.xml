@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">WatchWithCorrectAPILevel</string>
+    <string name="main_activity_title">Start a workout on your watch</string>
+    <string name="toast_csv_saved">CSV Saved</string>
+</resources>

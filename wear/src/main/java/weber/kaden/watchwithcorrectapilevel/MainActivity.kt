@@ -125,7 +125,7 @@ class MainActivity : WearableActivity(), SensorEventListener2, DataClient.OnData
             asPutDataRequest()
         }
         val dataClient: DataClient = Wearable.getDataClient(applicationContext)
-        val putDataTask: Task<DataItem> = dataClient.putDataItem(putDataReq)
+        dataClient.putDataItem(putDataReq)
     }
 
     override fun onDataChanged(p0: DataEventBuffer) {

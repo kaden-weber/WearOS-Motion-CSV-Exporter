@@ -7,7 +7,7 @@ apply plugin: 'kotlin-android-extensions'
 android {
     compileSdkVersion 28
     defaultConfig {
-        applicationId "weber.kaden.watchwithcorrectapilevel"
+        applicationId 'weber.kaden.WearOSAccelGryoCSV'
         minSdkVersion 25
         targetSdkVersion 28
         versionCode 1

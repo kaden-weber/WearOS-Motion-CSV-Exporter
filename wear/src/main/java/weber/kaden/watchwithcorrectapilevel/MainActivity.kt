@@ -8,18 +8,23 @@ import android.hardware.SensorManager
 import android.os.Bundle
 import android.support.wearable.activity.WearableActivity
 import android.widget.Button
-import java.io.File
-import java.io.FileWriter
-import java.io.IOException
+import com.google.android.gms.tasks.Task
+import com.google.android.gms.wearable.*
+import java.io.*
 
 
-class MainActivity : WearableActivity(), SensorEventListener2 {
+private const val DATA_ITEM_PATH = "/event_list"
+
+class MainActivity : WearableActivity(), SensorEventListener2, DataClient.OnDataChangedListener {
 
     private var mSensorManager: SensorManager? = null
-    private var mSensor: Sensor? = null
+    private var mAccelSensor: Sensor? = null
+    private var mGyroSensor: Sensor? = null
 
     private var isRecording = false
     private var sensorEvents = mutableListOf<SensorEvent>()
+
+    private var file: File? = null
     private var writer: FileWriter? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,22 +39,23 @@ class MainActivity : WearableActivity(), SensorEventListener2 {
         stopButton.isEnabled = false
 
         mSensorManager = this.getSystemService(Context.SENSOR_SERVICE) as SensorManager?
-        var mSensor = mSensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-
+        mAccelSensor = mSensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        mGyroSensor = mSensorManager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
 
         startButton.setOnClickListener {
             startButton.isEnabled = false
             stopButton.isEnabled = true
             isRecording = true
 
-            val file = File(getStorageDir(), "accel_" + System.currentTimeMillis() + ".csv")
+            file = File(getStorageDir(), "accel_" + System.currentTimeMillis() + ".csv")
             try {
-                val writer = FileWriter(file)
+                writer = FileWriter(file)
             } catch (e: IOException) {
                 e.printStackTrace()
             }
 
-            mSensorManager?.registerListener(this, mSensor, 0)
+            mSensorManager?.registerListener(this, mAccelSensor, SensorManager.SENSOR_DELAY_FASTEST)
+            mSensorManager?.registerListener(this, mGyroSensor, SensorManager.SENSOR_DELAY_FASTEST)
         }
 
         stopButton.setOnClickListener {
@@ -58,18 +64,23 @@ class MainActivity : WearableActivity(), SensorEventListener2 {
             isRecording = false
             mSensorManager?.flush(this)
             mSensorManager?.unregisterListener(this)
-            // send data
+
+            writer!!.close()
+
+            sendData()
         }
 
 
     }
 
-    override fun onPause() {
-        super.onPause()
-    }
-
     override fun onResume() {
         super.onResume()
+        Wearable.getDataClient(this).addListener(this)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Wearable.getDataClient(this).removeListener(this)
     }
 
     override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
@@ -78,24 +89,46 @@ class MainActivity : WearableActivity(), SensorEventListener2 {
     override fun onFlushCompleted(p0: Sensor?) {
     }
 
-    override fun onSensorChanged(p0: SensorEvent?) {
+    override fun onSensorChanged(event: SensorEvent?) {
         var label: String = ""
-        if(isRecording) {
-            if(p0?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
+        if (isRecording) {
+            val sensorType = event?.sensor?.type
+            if (sensorType == Sensor.TYPE_ACCELEROMETER) {
                 label = "ACCEL"
-                sensorEvents.add(p0)
+                sensorEvents.add(event)
             }
-        }
-        p0?.let {
-//            writer!!.write(
-//                String.format(
-//                    "%d; %s; %f; %f; %f; %f; %f; %f\n",
-//                    p0.timestamp, label, p0.values[0], p0.values[1], p0.values[2])
-//            )
+            else if (sensorType == Sensor.TYPE_GYROSCOPE) {
+                label = "GYRO"
+            }
+
+            event?.let {
+                writer!!.write(
+                    String.format(
+                        "%d; %s; %f; %f; %f;\n",
+                        event.timestamp, label, event.values[0], event.values[1], event.values[2]
+                    )
+                )
+            }
         }
     }
 
-    fun getStorageDir(): String {
+    private fun getStorageDir(): String {
         return getExternalFilesDir(null)?.absolutePath!!
+    }
+
+    private fun sendData() {
+        val asset = Asset.createFromBytes(file!!.readBytes())
+
+
+        val putDataReq: PutDataRequest = PutDataMapRequest.create(DATA_ITEM_PATH).run {
+            dataMap.putAsset(DATA_ITEM_PATH, asset)
+            asPutDataRequest()
+        }
+        val dataClient: DataClient = Wearable.getDataClient(applicationContext)
+        dataClient.putDataItem(putDataReq)
+    }
+
+    override fun onDataChanged(p0: DataEventBuffer) {
+
     }
 }
